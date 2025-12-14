@@ -104,7 +104,7 @@ Returns are stationnary (p-value = 0.01) at 95% level of confidence
 acf(na.omit(rt), main="ACF of returns")
 pacf(na.omit(rt), main="PACF of returns")
 ```
-There is only one significant pic at level one on ACP and one pic at level 7 on PACF.
+There is only one significant pic at level one on ACP and one pic on PACF.
 
 ```{r}
 r2t <- rt^2
@@ -113,7 +113,6 @@ acf(r2t, main="ACF of squared returns (r²t)", lag.max=40)
 This graph indicates pics at lags 1, 2 and 3. It confirms the presence volatitly on the series.
 
 
-SO P = 0 or 1, d = 1 and q = 0 or 7.
 
 ## Estimation of potentials ARIMA
 
@@ -285,6 +284,7 @@ bestmodel2
 AIC(bestmodel1) < AIC(bestmodel2)
 ```
 The conclusion here is that price logs must necessarily be used (AR(1)). However, ARIMA models are not suitable due to volatility issues. The models indicated are of the ARCH/GARCH type.
+
 
 
 
