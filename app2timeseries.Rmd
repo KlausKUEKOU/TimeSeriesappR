@@ -153,41 +153,4 @@ print(kpss_test)
 
 
 
-# 
-
-# 8. Which transformation would you retain to obtain a stationary series?
-# Based on the test results, you will decide whether the differenced series is stationary.
-
-# 9. Interpretation
-# It's important to work with stationary series to ensure that statistical properties (e.g., mean and variance) do not change over time. non stationarity may lead to spurious regressions
-# Stationarity is important for accurate econometric modeling, especially when performing regression analysis.
-
-# 10. Cross-country Comparison (Germany)
-# Assuming you have the data for Germany in a similar format
-germany_unemployment_rate <- read.csv("path_to_germany_data.csv")
-
-# Plot the time series for Germany
-ggplot(germany_unemployment_rate, aes(x = Date, y = UnemploymentRate)) +
-  geom_line() +
-  labs(title = "Unemployment Rate in Germany", x = "Date", y = "Unemployment Rate")
-
-# Apply ADF and KPSS tests to the German data
-adf_germany_test <- ur.df(germany_unemployment_rate$UnemploymentRate, type = "drift", selectlags = "AIC")
-summary(adf_germany_test)
-
-kpss_germany_test <- kpss.test(germany_unemployment_rate$UnemploymentRate)
-print(kpss_germany_test)
-
-# 11. Comparison of Persistence
-# Compare the results of ADF and KPSS tests for France and Germany to determine which country shows a more persistent unemployment process.
-
-# 12. Economic Reasons
-# This part requires interpretation based on the results, considering the economic factors that could influence the persistence of unemployment in each country.
-
-
-
-
-
-
-
 
