@@ -1,0 +1,205 @@
+---
+title: "Untitled"
+author: "Klaus KUEKOU"
+date: "2025-12-14"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Import needed libraries
+
+```{r, echo=FALSE}
+library(forecast)
+library(ggplot2)
+library(tseries)
+library(dplyr) 
+```
+
+## Dataset
+
+```{r, echo=FALSE}
+data("AirPassengers")
+```
+
+## Characteristics of the dataset
+
+```{r}
+start(AirPassengers)
+end(AirPassengers)
+frequency(AirPassengers)
+summary(as.numeric(AirPassengers))
+```
+
+## Plot the series
+
+```{r}
+autoplot(AirPassengers) +
+  geom_line(color = "red", linewidth = 0.8) +
+  labs(title = "Monthly Airline Passengers (1949-1960)",
+       y = "Number of Passengers",
+       x = "Year") +
+  theme_minimal()
+```
+The series shows a clear upward trend throughout the period 1949–1960. At the same time, this graph seems to indicate a very marked seasonality.
+
+```{r}
+plot(AirPassengers, main = "Monthly Airline Passengers (1949-1960)", 
+     ylab = "Number of Passengers", xlab = "Year")
+```
+
+## Additive decomposition
+
+```{r}
+decomp_add <- decompose(AirPassengers, type = "additive")
+plot(decomp_add)
+```
+```{r}
+autoplot(decomp_add)+geom_line(color = "blue", linewidth = 0.8) + theme_minimal()
+```
+The graph seems to indicate that the airpassenger series increases significantly with regular cycles. The trend component indicates long-term growth, while seasonal shows stable annual seasonality (recurring strong/weak months). The residual component is centred around zero but becomes more volatile at the end of the period, suggesting increasing variance and therefore that a multiplicative approach would be more appropriate than a strictly additive decomposition.
+
+
+## Multiplicative decomposition
+
+```{r}
+decomp_mult <- decompose(AirPassengers, type = "multiplicative")
+plot(decomp_mult)
+```
+
+```{r}
+autoplot(decomp_mult)+ geom_line(color = "darkgreen", linewidth = 0.8) + theme_minimal()
+```
+
+The random (residual) component seems to fluctuate around 1 overall, which means that after removing the trend and seasonality, only relatively moderate irregular deviations remain; the few more pronounced peaks/troughs (especially towards the end) reflect one-off shocks or unexplained variability. 
+
+## Moving average 
+
+```{r, echo=FALSE}
+trend_12 <- ma(AirPassengers, order = 12, centre = TRUE)
+trend_12
+
+trend_6 <- ma(AirPassengers, order = 6, centre = TRUE)
+trend_6 
+ 
+trend_24 <- ma(AirPassengers, order = 24, centre = TRUE)
+trend_24
+```
+
+#### Another and simple way 
+
+```{r}
+trend_12 <- stats::filter(AirPassengers, rep(1/12,12))
+trend_6 <- stats::filter(AirPassengers, rep(1/6,6))
+trend_24 <- stats::filter(AirPassengers, rep(1/24,24))
+```
+
+
+## Compare trends
+
+```{r}
+plot(AirPassengers, col = 'blue', main = "Comparison of Moving Averages")
+lines(trend_6, col = "green")
+lines(trend_12, col = "red")
+lines(trend_24, col = "yellow")
+legend("topleft", legend = c("Airpassengers", "MA(6)", "MA(12)", "MA(24)"), 
+       col = c("green", "red", "yellow", 'blue'), lty = 1)
+```
+
+```{r}
+autoplot(AirPassengers, series = 'AirPassengers') +
+  autolayer(trend_6, series = "MA(6)")+
+  autolayer(trend_12, series = "MA(12)")+
+  autolayer(trend_24, series = "MA(24)")+
+  labs(title = "Airline Passengers (1949-1960)",
+       y = "Number of Passengers",
+       x = "Year") +
+  theme_minimal()
+```
+
+MA(6) is the trend which better follows the airpassengers'trend it's more responsive with more noise to the original trend. MA(12) and MA(24) are very closed. so we will use MA(12) which better follows trend on multiplicative decomposition.
+
+## Remove trend and Compute seasonal means 
+
+```{r}
+detrended <- AirPassengers - trend_12
+seasonal_component <- tapply(detrended, cycle(AirPassengers), mean, na.rm = TRUE)
+```
+
+
+# Plot seasonal pattern
+
+```{r}
+plot(seasonal_component, main = "Average Seasonal effect", 
+        xlab = "Month", ylab = "Seasonal Effect", , col = 'blue')
+barplot(seasonal_component, main = "Average Seasonal effect", 
+        xlab = "Month", ylab = "Seasonal Effect", , col = 'lightblue')
+```
+Le graphique montre une saisonnalité nette. L’effet moyen est fortement positif en juin–août (pic en juillet/août et négatif surtout en février et novembre–décembre, indiquant des mois de forte et faible affluence.
+
+# residuals
+
+```{r}
+residuals <- AirPassengers - trend_12 - seasonal_component[cycle(AirPassengers)]
+```
+
+
+```{r}
+autoplot(AirPassengers, series = 'AirPassengers') + 
+  autolayer(ts(trend_12, start = start(AirPassengers), frequency = frequency(AirPassengers)), 
+            series = "Trend") + 
+  autolayer(ts(seasonal_component[cycle(AirPassengers)], 
+               start = start(AirPassengers), 
+               frequency = frequency(AirPassengers)), 
+            series = "Seasonal") + 
+  autolayer(ts(residuals, start = start(AirPassengers), frequency = frequency(AirPassengers)), 
+            series = "Residuals") + 
+  labs(title = "Airline Passengers (1949-1960)", 
+       y = "Number of Passengers", 
+       x = "Year") + 
+  theme_minimal()
+```
+
+## Differencing
+
+```{r}
+diff_series <- diff(AirPassengers)
+plot(diff_series, main = "Differenced Series")
+```
+
+The differentiated series fluctuates around zero (between 100 and -100), but remains more variable and shows more pronounced peaks towards the end, indicating increasing volatility.
+
+
+## Log transformation
+
+```{r}
+log_air <- log(AirPassengers)
+plot(log_air, main = "Log-transformed Series")
+```
+
+
+## Decompose log-transformed series
+
+
+```{r}
+decomp_log <- decompose(log_air, type = "additive")
+plot(decomp_log)
+```
+
+# Compare original vs log decomposition
+
+```{r}
+par(mfrow = c(2, 2))
+plot(decomp_add$trend, main = "Trend (Original)")
+plot(decomp_log$trend, main = "Trend (Log)")
+plot(decomp_add$seasonal, main = "Seasonal (Original)")
+plot(decomp_log$seasonal, main = "Seasonal (Log)")
+par(mfrow = c(1, 1))
+```
+
+
+
+
+

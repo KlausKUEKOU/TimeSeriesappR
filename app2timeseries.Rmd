@@ -1,0 +1,193 @@
+---
+title: "Untitled"
+author: "Klaus KUEKOU"
+date: "2025-12-02"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r,  include=FALSE}
+# Load required libraries
+library(urca)
+library(tseries)
+library(ggplot2)
+library(dplyr)
+```
+
+
+## 1. Importing and Visualizing Data
+
+```{r, echo=FALSE,  include=FALSE}
+if (!require(WDI)) install.packages("WDI")
+library(WDI)
+
+WDIsearch("unemployment", field = "name")[1:20, ]
+fr_data <- WDI(country = "FR", indicator = "SL.UEM.TOTL.ZS", start = 1991,
+                   end = 2022)
+
+
+fr_data <- fr_data %>%arrange(year)%>%rename(unemp = SL.UEM.TOTL.ZS) %>%
+  select(country, iso2c, iso3c, year, unemp)
+
+head(fr_data)
+```
+
+```{r,  include=FALSE}
+fr_ts = ts(fr_data$unemp, start = 1991, frequency = 1)
+```
+
+## Plot the time series
+
+
+```{r}
+ggplot(fr_data, aes(x = year, y = fr_data$unemp)) +
+  geom_line() +
+  labs(title = "Unemployment Rate in France", x = "Date", y = "Unemployment Rate")+
+  theme_classic()
+```
+
+
+```{r, include=FALSE}
+autoplot(fr_ts) +
+  labs(title = "Unemployment Rate in France", x = "Year", y = "Unemployment Rate (%)") +
+  theme_classic()
+```
+
+
+```{r}
+acf(fr_data$unemp)
+pacf(fr_data$unemp)
+```
+
+# 4. Unit Root Test (ADF Test)
+# Null hypothesis of the ADF test: The series has a unit root (non-stationary).
+
+
+```{r}
+tseries::adf.test(fr_ts, k = 0)
+```
+
+```{r}
+tseries::adf.test(fr_ts, k = 1)
+```
+
+
+
+```{r}
+adf_test <- ur.df(fr_ts, type = "none", lags = 0)
+summary(adf_test)
+```
+
+
+
+```{r}
+adf_test <- ur.df(fr_ts, type = "none", lags = 1)
+summary(adf_test)
+```
+
+```{r}
+temps = 1:length(fr_ts)
+fr_ts_det = fr_ts - lm(fr_ts~temps)$fitted.values
+tseries::adf.test(fr_ts_det, k = 1)
+```
+
+## 5. KPSS Test
+ Null hypothesis of the KPSS test: The series is stationary.
+
+```{r}
+kpss_test <- tseries::kpss.test(fr_ts)
+print(kpss_test)
+```
+
+
+```{r}
+kpss_test <- tseries::kpss.test(fr_ts, null = "Trend")
+print(kpss_test)
+```
+
+
+
+## Differenced series
+
+```{r}
+fr_diff <- diff(fr_ts)
+```
+
+
+```{r}
+autoplot(fr_diff) +
+  labs(title = "Unemployment Rate in France", x = "Year", y = "Unemployment Rate (%)") +
+  theme_classic()
+```
+ACF and PACF of the differenced series
+
+```{r}
+acf(fr_diff)
+pacf(fr_diff)
+```
+
+# 7. ADF and KPSS Test on the Differenced Series
+
+
+```{r}
+tseries::adf.test(fr_diff, k = 1)
+```
+
+
+
+```{r}
+kpss_test <- tseries::kpss.test(fr_diff, null = "Trend")
+print(kpss_test)
+```
+
+
+
+
+
+
+
+
+
+
+
+# 
+
+# 8. Which transformation would you retain to obtain a stationary series?
+# Based on the test results, you will decide whether the differenced series is stationary.
+
+# 9. Interpretation
+# It's important to work with stationary series to ensure that statistical properties (e.g., mean and variance) do not change over time. non stationarity may lead to spurious regressions
+# Stationarity is important for accurate econometric modeling, especially when performing regression analysis.
+
+# 10. Cross-country Comparison (Germany)
+# Assuming you have the data for Germany in a similar format
+germany_unemployment_rate <- read.csv("path_to_germany_data.csv")
+
+# Plot the time series for Germany
+ggplot(germany_unemployment_rate, aes(x = Date, y = UnemploymentRate)) +
+  geom_line() +
+  labs(title = "Unemployment Rate in Germany", x = "Date", y = "Unemployment Rate")
+
+# Apply ADF and KPSS tests to the German data
+adf_germany_test <- ur.df(germany_unemployment_rate$UnemploymentRate, type = "drift", selectlags = "AIC")
+summary(adf_germany_test)
+
+kpss_germany_test <- kpss.test(germany_unemployment_rate$UnemploymentRate)
+print(kpss_germany_test)
+
+# 11. Comparison of Persistence
+# Compare the results of ADF and KPSS tests for France and Germany to determine which country shows a more persistent unemployment process.
+
+# 12. Economic Reasons
+# This part requires interpretation based on the results, considering the economic factors that could influence the persistence of unemployment in each country.
+
+
+
+
+
+
+
+

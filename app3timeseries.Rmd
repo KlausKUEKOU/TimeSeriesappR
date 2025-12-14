@@ -1,0 +1,382 @@
+---
+title: "App3 arima ts"
+author: "Klaus KUEKOU"
+date: "2025-12-09"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+# Road map for ARIMA
+
+
+## Import Library
+
+```{r, echo = FALSE}
+library(forecast)
+library(tseries)
+library(ggplot2)
+library(gridExtra)
+```
+
+
+## Load Dataset and Explore it 
+
+```{r}
+data("EuStockMarkets")
+str(EuStockMarkets)
+frequency(EuStockMarkets)
+time(EuStockMarkets)[c(1, length(time(EuStockMarkets)))]
+colnames(EuStockMarkets)
+```
+## Represent the choosen series
+
+
+```{r}
+CAC <- EuStockMarkets[, "CAC"]
+autoplot(CAC) + 
+  ggtitle("CAC Price Series") + 
+  ylab("Price") + 
+  xlab("Time") +
+  theme_minimal()
+```
+Overall, the graph show that CAC prices tend to grow over time between 1991 and 1994 and also 1999. It's observe a decline between 1994 and 1996. These trends are associated to a variability.
+
+## Log prices and returns
+
+```{r}
+pt <- log(CAC)
+rt <- diff(pt)
+```
+
+
+```{r}
+
+p1 <- autoplot(pt) + 
+  ggtitle("Log-prices") + 
+  ylab("Log-price") + 
+  theme_minimal()
+
+p2 <- autoplot(rt) + 
+  ggtitle("Returns") + 
+  ylab("Returns") + 
+  theme_minimal()
+
+grid.arrange(p1, p2, ncol=1)
+```
+
+## Check the stationnarity (ADF)
+
+### Price series
+
+```{r}
+adf_price <- adf.test(CAC)
+print(adf_price)
+```
+
+```{r}
+adf_price <- adf.test(CAC, k=1)
+print(adf_price)
+```
+Prices serie is not stationnary with strong evidence (p-value = 0.9876) at 95% level of confidence
+
+### Returns
+
+
+```{r}
+adf_rt <- adf.test(rt)
+print(adf_rt)
+```
+
+```{r}
+adf_rt <- adf.test(rt, k=1)
+print(adf_rt)
+```
+
+Returns are stationnary (p-value = 0.01) at 95% level of confidence
+
+## ACF and PACF of returns 
+
+```{r}
+acf(na.omit(rt), main="ACF of returns")
+pacf(na.omit(rt), main="PACF of returns")
+```
+There is only one significant pic at level one on ACP and one pic at level 7 on PACF.
+
+```{r}
+r2t <- rt^2
+acf(r2t, main="ACF of squared returns (r²t)", lag.max=40)
+```
+This graph indicates pics at lags 1, 2 and 3. It confirms the presence volatitly on the series.
+
+
+SO P = 0 or 1, d = 1 and q = 0 or 7.
+
+## Estimation of potentials ARIMA
+
+
+```{r}
+ARIMA100 <- Arima(rt, order=c(1,0,0))
+ARIMA001 <- Arima(rt, order=c(0,0,1))
+ARIMA101 <- Arima(rt, order=c(1,0,1))
+ARIMA107 <- Arima(rt, order=c(1,0,7))
+ARIMA007 <- Arima(rt, order=c(0,0,7))
+```
+
+
+```{r}
+models <- list(ARIMA100, ARIMA001, ARIMA101, ARIMA107, ARIMA007)
+names_models <- c("ARIMA(1,0,0)", "ARIMA(0,0,1)", "ARIMA(1,0,1)", 
+                  "ARIMA(1,0,7)", "ARIMA(0,0,7)")
+
+comparison <- data.frame(
+  Model = names_models,
+  AIC = sapply(models, AIC),
+  BIC = sapply(models, BIC),
+  LogLik = sapply(models, logLik)
+)
+```
+
+
+
+```{r}
+comparison
+```
+
+
+
+```{r}
+bestmodel = forecast::auto.arima(rt, d=0)
+bestmodel
+```
+
+```{r}
+coef_model <- coef(bestmodel)
+print(coef_model)
+```
+
+
+The best model is AR(1). an increase of the last return (CAC), will lead an increase 
+of present value.
+
+
+
+```{r}
+checkresiduals(bestmodel)
+
+residuals <- residuals(bestmodel)
+lb_test <- Box.test(residuals, lag=20, type="Ljung-Box", fitdf=length(coef(bestmodel)))
+print(lb_test)
+```
+
+
+```{r}
+lb_test_sq <- Box.test(residuals^2, lag=20, type="Ljung-Box")
+print(lb_test_sq)
+```
+## some forecasted values 
+
+
+```{r}
+h <- 20
+forecast_r <- forecast(bestmodel, h=h, level=95)
+
+autoplot(forecast_r) + 
+  ggtitle("Return forecasts (h=20 days, IC 95%)") +
+  ylab("Returns") +
+  xlab("Time") +
+  theme_minimal()
+
+print(forecast_r)
+```
+
+
+
+## Best model for ARIMA d = 1
+
+
+
+```{r}
+ARIMA110 <- Arima(pt, order=c(1,1,0))
+ARIMA011 <- Arima(pt, order=c(0,1,1))
+ARIMA111 <- Arima(pt, order=c(1,1,1))
+ARIMA117 <- Arima(pt, order=c(1,1,7))
+ARIMA017 <- Arima(pt, order=c(0,1,7))
+```
+
+
+
+
+```{r}
+models <- list(ARIMA110, ARIMA011, ARIMA111, ARIMA117, ARIMA017)
+names_models <- c("ARIMA(1,1,0)", "ARIMA(0,1,1)", "ARIMA(1,1,1)", 
+                  "ARIMA(1,1,7)", "ARIMA(0,1,7)")
+
+comparison <- data.frame(
+  Model = names_models,
+  AIC = sapply(models, AIC),
+  BIC = sapply(models, BIC),
+  LogLik = sapply(models, logLik)
+)
+```
+
+```{r}
+comparison
+```
+
+
+```{r}
+bestmodel1 = forecast::auto.arima(pt, d=1)
+bestmodel1
+```
+
+
+```{r}
+coef_model1 <- coef(bestmodel1)
+print(coef_model1)
+```
+
+
+```{r}
+checkresiduals(bestmodel1)
+
+residuals1 <- residuals(bestmodel1)
+lb_test1 <- Box.test(residuals1, lag=20, type="Ljung-Box", fitdf=length(coef(bestmodel1)))
+print(lb_test1)
+```
+
+
+```{r}
+lb_test_sq1 <- Box.test(residuals1^2, lag=20, type="Ljung-Box")
+print(lb_test_sq1)
+```
+
+
+
+##FORECAST BEST MODEL 1
+
+```{r}
+h <- 20
+forecast_r1 <- forecast(bestmodel1, h=h, level=95)
+
+autoplot(forecast_r1) + 
+  ggtitle("Log price forecasts (h=20 days, IC 95%)") +
+  ylab("Log Prices") +
+  xlab("Time") +
+  theme_minimal()
+
+print(forecast_r1)
+```
+
+## Best model with CAC.
+
+```{r}
+bestmodel2 = forecast::auto.arima(CAC, d=1)
+bestmodel2
+```
+
+
+## Comparison with Bestmodel1
+
+```{r}
+AIC(bestmodel1) < AIC(bestmodel2)
+```
+The conclusion here is that price logs must necessarily be used (AR(1)). However, ARIMA models are not suitable due to volatility issues. The models indicated are of the ARCH/GARCH type.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

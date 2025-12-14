@@ -1,0 +1,242 @@
+---
+title: "Untitled"
+author: "Klaus KUEKOU"
+date: "2025-12-11"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Road map for dynamic regression models in Time series
+
+
+```{r,  include=FALSE}
+# Load required libraries
+library(tseries)
+library(ggplot2)
+library(dplyr)
+library(WDI)
+library(dynlm)
+library(dplyr)
+library(lmtest)
+```
+
+
+## 1. Importing and Visualizing Data
+
+```{r, echo=FALSE,  include=FALSE}
+if (!require(WDI)) install.packages("WDI")
+library(WDI)
+
+WDIsearch("unemployment", field = "name")[1:20, ]
+us_data1 <- WDI(country = "US", indicator = "SL.UEM.TOTL.ZS", start = 1991,
+                   end = 2022)
+
+us_data1 <- us_data1 %>%arrange(year)%>%rename(unemp = SL.UEM.TOTL.ZS) %>%
+  select(country, iso2c, iso3c, year, unemp)
+
+WDIsearch("inflation", field = "name")[1:20, ]
+us_data2<- WDI(country = "US", indicator = "FP.CPI.TOTL.ZG", start = 1991,
+                   end = 2022)
+
+us_data2 <- us_data2 %>%arrange(year)%>%rename(infl = FP.CPI.TOTL.ZG) %>%
+  select(country, iso2c, iso3c, year, infl)
+
+us_data = merge(us_data1, us_data2, by = "year" )
+
+
+head(us_data)
+
+```
+
+
+## Create ts series
+
+```{r, echo=FALSE}
+unemp_ts <- ts(us_data$unemp, start = 1991, frequency = 1)
+infl_ts <- ts(us_data$infl, start = 1991, frequency = 1)
+```
+
+
+## Plot of the two series
+
+```{r}
+library(ggfortify)
+
+p1 <- autoplot(unemp_ts) + 
+  ggtitle("US Unemployment Rate (1991-2022)") +
+  ylab("Unemployment (%)") + 
+  xlab("Year") +
+  theme_minimal()
+
+p2 <- autoplot(infl_ts) + 
+  ggtitle("US Inflation Rate (1991-2022)") +
+  ylab("Inflation (%)") + 
+  xlab("Year") +
+  theme_minimal()
+
+gridExtra::grid.arrange(p1, p2, ncol = 1)
+```
+Graphical analysis of the two series (unemployment and inflation) reveals broadly fluctuating trends between 1991 and 2022, suggesting fairly dynamic political and economic choices. 
+
+# Scatter plot to visualize relationship
+
+```{r}
+plot(us_data$infl, us_data$unemp, 
+     xlab = "Inflation (%)", 
+     ylab = "Unemployment (%)",
+     main = "Unemployment vs Inflation",
+     pch = 19, col = "blue")
+abline(lm(unemp ~ infl, data = us_data), col = "red", lwd = 4)
+
+```
+The graph above suggests an inverse relationship between inflation and unemployment. High inflation rates are associated with low unemployment rates (this observation is consistent with Philips' theory on the subject).
+
+
+## What do we have  with OLS on the relation between (Static model)
+
+```{r}
+static_model <- lm(unemp ~ infl, data = us_data)
+summary(static_model)
+```
+The results of estimation (static ols) reveals that an increase of one percentage point of inflation leads to a decrease of 0.3720 point of unumployment. This result confirm what we have saw on the previous graphic. It is consistent with Phillips' 1958 findings, which illustrate the inverse relationship between unemployment and inflation. However, this estimate is based on data that is subject to dynamic change; more rigorous estimates are therefore needed.
+
+
+## Koyck Model
+
+```{r}
+us_data$unemp_lag <- stats::lag(unemp_ts, 1) #create lag variable
+us_data <- us_data[complete.cases(us_data), ]
+
+koyck_model <- lm(unemp ~ infl + unemp_lag, data = us_data)
+summary(koyck_model)
+```
+
+```{r}
+beta0 <- coef(koyck_model)[1]
+beta1 <- coef(koyck_model)[2]  
+lambda <- coef(koyck_model)[3]
+beta0
+beta1 
+lambda 
+```
+Koyck's model shows that past unemployment has a significant impact on current unemployment, with a coefficient of 1, indicating a direct and strong relationship. Inflation, on the other hand, has no significant effect on unemployment in this model, with a very low coefficient. 
+
+
+```{r}
+dw_test <- dwtest(koyck_model)
+print(dw_test)
+```
+The Durbin-Watson test lead us to conclude that there is no autocorrelation problem at order 1 in this model.
+
+
+```{r}
+bgtest(koyck_model, order = 5)
+```
+The Breusch-Godfrey test also lead us to conclude that there is no autocorrelation problem at order 5 in this model.
+
+## Model de Cochrane-Orcutt
+
+```{r}
+model_koyck <- lm(unemp ~ infl + lag(unemp, 1), data = us_data)
+u <- residuals(model_koyck)
+
+```
+
+
+```{r}
+rho <- coef(lm(u[-1] ~ u[-length(u)]))[2]
+
+us_data$y_star  <- us_data$unemp - rho * dplyr::lag(us_data$unemp, 1)
+us_data$x_star  <- us_data$infl - rho * dplyr::lag(us_data$infl, 1)
+us_data$yl_star <- dplyr::lag(us_data$unemp, 1) - rho * dplyr::lag(us_data$unemp, 2)
+
+model_co <- lm(y_star ~ x_star + yl_star, data = us_data)
+summary(model_co)
+```
+The model whith the correction of Cochrane-Orcutt indicate that both inflation and lagged unemployment have a significant impact on the dependent variable, adjusted unemployment. The coefficient for inflation is negative, showing that inflation has an inverse effect on adjusted unemployment, while lagged unemployment has a positive and significant effect. 
+
+
+```{r}
+dwtest(model_co)
+```
+
+
+
+```{r}
+bgtest(model_co, order = 5)
+```
+
+
+
+## ARDL model
+
+
+```{r}
+library(ARDL)
+model_ardl1 <- ardl(unemp ~ infl, data = us_data, order = c(1,1))
+summary(model_ardl1)
+```
+
+The results of ARDL(1,1) reveals that the short-term effect of inflation is evident, as an increase of one percentage point in inflation leads to a 0.51 percentage point reduction in unemployment immediately. This aligns with the short-term Phillips curve, which suggests an inverse relationship between inflation and unemployment in the short run. 
+
+Furthermore, the persistence of unemployment is notable, as the coefficient for lagged unemployment is highly significant, indicating that approximately 75% of the previous year's unemployment level is carried over to the current year. 
+
+
+
+```{r}
+dwtest(model_ardl1)
+```
+
+
+
+```{r}
+bgtest(model_ardl1)
+```
+Both Durbin-Watson and Breusch-Godfrey tests also lead us to conclude that there is no autocorrelation problem at order 1 in this model.
+
+
+```{r}
+auto_ardl <- auto_ardl(unemp ~ infl, data = us_data, max_order = c(3,3), selection = "BIC")
+summary(auto_ardl$best_model)
+```
+
+The results of ARDL(1,1) reveals that the short-term effect of inflation is evident, as an increase of one percentage point in inflation leads to a 0.7 percentage point reduction in unemployment immediately. This aligns with the short-term Phillips curve, which suggests an inverse relationship between inflation and unemployment in the short run. 
+
+Furthermore, the persistence of unemployment is notable, as the coefficient for lagged unemployment (lag1 and lag 3) are highly significant, indicating that approximately 75% of the previous year's unemployment level is carried over to the current year. 
+
+
+```{r}
+dwtest(auto_ardl$best_model)
+```
+
+
+
+```{r}
+bgtest(auto_ardl$best_model)
+```
+
+Both Durbin-Watson and Breusch-Godfrey tests also lead us to conclude that there is no autocorrelation problem at order 1 in this model.
+
+
+
+```{r}
+bgtest(auto_ardl$best_model, order = 5)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
