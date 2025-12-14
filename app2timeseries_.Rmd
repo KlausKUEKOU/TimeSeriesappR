@@ -1,0 +1,175 @@
+---
+title: "Untitled"
+author: "Klaus KUEKOU"
+date: "2025-12-04"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Load required libraries
+
+```{r,  include=FALSE}
+library(tseries)
+library(ggplot2)
+library(dplyr)
+library(forecast)
+library(ggplot2)
+library(tseries)
+library(dplyr) 
+```
+
+
+## 1. Importing and Visualizing Data
+
+```{r, echo=FALSE}
+if (!require(WDI)) install.packages("WDI")
+library(WDI)
+
+WDIsearch("inflation", field = "name")[1:20, ]
+us_data <- WDI(country = "US", indicator = "FP.CPI.TOTL.ZG", start = 1990,
+                   end = 2024)
+
+
+us_data <- us_data %>%arrange(year)%>%rename(infl = FP.CPI.TOTL.ZG) %>%
+  select(country, iso2c, iso3c, year, infl)
+
+head(us_data)
+```
+
+Inflation is measured by the consumer price index reflects the annual percentage change in the cost to the average consumer of acquiring a basket of goods and services that may be fixed or changed at specified intervals, such as yearly. This indicator denotes the percentage change over each previous year of the constant price (base year 2015) series in United States dollars.
+
+```{r}
+us_ts = ts(us_data$infl, start = c(1990,1), end = 2024, frequency = 1)
+```
+
+## Plot the time series
+
+```{r}
+autoplot(us_ts) +
+  labs(title = "Inflation Rate in US", x = "Year", y = "Inflation rate (%)") +
+  theme_classic()
+```
+The graph shows the evolution of the inflation rate in the United States from 1990 to 2024, with periods of decreasing inflation, particularly between 1990 and the early 2000s, to 5% to around 1%. Notable fluctuations appear in the 2000s and 2010s, especially during the 2008 financial crisis, when inflation fell before rising again. A sharp increase is also observed in 2020-2021, due to global economic disruptions caused by the COVID-19 pandemic. These peaks can reflect the economy's vulnerability to crises (2008 and covid 19). 
+
+In the technical point the serie seems to be not stationnary.
+
+## Residual
+
+```{r}
+temps = 1:length(us_ts)
+trend = ts(lm(us_ts~temps)$fitted.values,start = c(1990,1), end = 2024, frequency = 1)
+us_ts_det = us_ts - lm(us_ts~temps)$fitted.values
+```
+
+
+```{r}
+autoplot(us_ts_det, series = 'Residual') +
+  autolayer(us_ts, series = "Inflation  rate")+
+  autolayer(trend, series = "Trend")+
+  labs(title = "US inflation rate (1990-2024)",
+       y = "Inflation",
+       x = "Year") +
+  theme_minimal()
+```
+The residual term of the series fluctuates significantly, while the trend line remains relatively stable around 3%. 
+
+```{r}
+autoplot(us_ts_det, series = 'Residual') +
+  labs(title = "US inflation rate (1990-2024)",
+       y = "Inflation",
+       x = "Year") +
+  theme_minimal()
+```
+
+
+
+
+
+```{r}
+acf(us_data$infl)
+```
+
+The ACF plot shows that the series has a significant and strong correlation at lag 1 and a weak and significant correlation at lag 2. However, the correlations at higher lags quickly decrease and between the two blue dash lines , indicating that the correlations between the older values of the series appear non-significant. The serie seems to be stationnary.
+
+
+```{r}
+pacf(us_data$infl)
+```
+
+The PACF plot shows that the significant correlations appear only at lag 1, indicating that after accounting for the influence of prior lags, there is no significant correlation other than the first lag. This suggests that the series can potentially be modeled with an AR(1) process.
+
+# 4. Unit Root Test (ADF Test)
+
+Null hypothesis of the ADF test: The series has a unit root (non-stationary).
+
+
+```{r}
+tseries::adf.test(us_ts, k = 0)
+```
+With 90% of evidence, we conclude that the serie without the trend is stationnary.
+
+
+
+```{r}
+tseries::adf.test(us_ts, k = 1)
+```
+With 90% of evidence, we conclude that the serie with the trend is stationnary.
+
+## 5. KPSS Test
+ 
+Null hypothesis of the KPSS test: The series is stationnary.
+
+```{r}
+kpss_test <- tseries::kpss.test(us_ts)
+print(kpss_test)
+```
+
+
+```{r}
+kpss_test <- tseries::kpss.test(us_ts, null = "Trend")
+print(kpss_test)
+```
+ The both test of KPSS confirm the conflusion made with the both test ADF.
+ so the serie of US' inflation is stationnary.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
